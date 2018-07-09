@@ -48,7 +48,6 @@ int main(int argc, char *argv[]) {
     int p = -1; // previous char in stream
 
     for (int i = 0; c != EOF ; i++) {
-        printf("p = %d\n", p);
         c = fgetc(fp);
         if( c == EOF ) { break; }
         bytes++;
