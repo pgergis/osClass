@@ -44,14 +44,16 @@ int main(int argc, char *argv[]) {
     int bytes = 0;
     int words = 0;
     int lines = 0;
-    int c;
+    int c; // current char in stream
+    int p; // previous char in stream
 
     for (int i = 0; c != EOF ; i++) {
         c = fgetc(fp);
         if( c == EOF ) { break; }
         bytes++;
-        if( isWhitespace(c) ) { words++; }
+        if( isWhitespace(c) && !isWhitespace(p)) { words++; }
         if( isNewline(c) )    { lines++; }
+        p = c;
     }
 
     printf("  %d  %d  %d  [%s]\n", lines, words, bytes, argv[1]);
