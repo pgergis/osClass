@@ -36,27 +36,47 @@ int isNewline(char c) {
 }
 
 int main(int argc, char *argv[]) {
-    if( argc != 2 ) { puts("Err: Missing arg\nUsage: ./wc file_path"); return 0; }
+    if( argc < 2 ) { puts("Err: Missing arg\nUsage: ./wc file_path [file_path]*"); return 0; }
 
-    FILE *fp;
-    fp = fopen(argv[1], "r");
+    int bytes;
+    int words;
+    int lines;
 
-    int bytes = 0;
-    int words = 0;
-    int lines = 0;
+    int totalBytes = 0;
+    int totalWords = 0;
+    int totalLines = 0;
+
     int c; // current char in stream
-    int p = -1; // previous char in stream
+    int p; // previous char in stream
 
-    for (int i = 0; c != EOF ; i++) {
+    for(int i = 0; i < argc - 1; i++) {
+        FILE *fp;
+        fp = fopen(argv[i+1], "r");
+
+        bytes = 0;
+        words = 0;
+        lines = 0;
+        p = -1;
+
         c = fgetc(fp);
-        if( c == EOF ) { break; }
-        bytes++;
-        if( isWhitespace(c) && !isWhitespace(p)) { words++; }
-        if( isNewline(c) )    { lines++; }
-        p = c;
+        while (c != EOF) {
+            if( c == EOF ) { break; }
+            bytes++;
+            if( isWhitespace(c) && !isWhitespace(p)) { words++; }
+            if( isNewline(c) ) { lines++; }
+            p = c;
+            c = fgetc(fp);
+        }
+
+        totalBytes += bytes;
+        totalWords += words;
+        totalLines += lines;
+
+        printf("%5d%5d%5d %s\n", lines, words, bytes, argv[i+1]);
+        fclose(fp);
     }
 
-    printf("  %d  %d  %d  [%s]\n", lines, words, bytes, argv[1]);
-    fclose(fp);
+    printf("%5d%5d%5d total\n", totalLines, totalWords, totalBytes);
+
     return 0;
 }
