@@ -36,7 +36,7 @@ int isNewline(char c) {
 }
 
 int main(int argc, char *argv[]) {
-    if( argc < 2 ) { puts("Err: Missing arg\nUsage: ./wc file_path [file_path]*"); return 0; }
+    if(argc < 2) { puts("Err: Missing arg\nUsage: ./wc file_path [file_path]*"); return 0; }
 
     int bytes;
     int words;
@@ -51,19 +51,21 @@ int main(int argc, char *argv[]) {
 
     for(int i = 0; i < argc - 1; i++) {
         FILE *fp;
-        fp = fopen(argv[i+1], "r");
+        if(!(fp = fopen(argv[i+1], "r"))) {
+            fprintf(stderr, "wc: %s: No such file or directory\n", argv[i+1]); continue;
+        }
 
         bytes = 0;
         words = 0;
         lines = 0;
-        p = -1;
+        p = ' ';
 
         c = fgetc(fp);
-        while (c != EOF) {
-            if( c == EOF ) { break; }
+        while(c != EOF) {
+            if(c == EOF) { break; }
             bytes++;
-            if( isWhitespace(c) && !isWhitespace(p)) { words++; }
-            if( isNewline(c) ) { lines++; }
+            if(isWhitespace(c) && !isWhitespace(p)) { words++; }
+            if(isNewline(c)) { lines++; }
             p = c;
             c = fgetc(fp);
         }
@@ -76,7 +78,7 @@ int main(int argc, char *argv[]) {
         fclose(fp);
     }
 
-    printf("%5d%5d%5d total\n", totalLines, totalWords, totalBytes);
+    if(totalBytes != bytes) { printf("%5d%5d%5d total\n", totalLines, totalWords, totalBytes); }
 
     return 0;
 }
