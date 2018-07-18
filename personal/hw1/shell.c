@@ -74,7 +74,7 @@ int cmd_pwd(unused struct tokens *tokens) {
 /* Move to directory given in argument */
 int cmd_cd(struct tokens *tokens) {
     if(chdir(tokens_get_token(tokens, 1)) == 0) {
-        sprintf(cdir, tokens_get_token(tokens, 1));
+        strcpy(cdir, tokens_get_token(tokens, 1));
         return 0;
     }
     printf("cd: Error");
