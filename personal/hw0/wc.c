@@ -13,23 +13,23 @@
 #include <stdio.h>
 
 int isWhitespace(char c) {
-    if (   c  == ' '  // space
-        || c  == '\t' // horiz. tab
-        || c  == '\n' // newline
-        || c  == '\v' // vert. tab
-        || c  == '\f' // feed
-        || c  == '\r' // carriage return
-        ){
+    switch(c) {
+    case ' ' : // space
+    case '\t': // horiz. tab
+    case '\n': // newline
+    case '\v': // vert. tab
+    case '\f': // feed
+    case '\r': // carriage return
         return 1;
     }
     return 0;
 }
 
 int isNewline(char c) {
-    if (   c  == '\n' // newline
-        || c  == '\f' // feed
-        || c  == '\r' // carriage return
-        ){
+    switch(c) {
+    case '\n': // newline
+    case '\f': // feed
+    case '\r': // carriage return
         return 1;
     }
     return 0;
