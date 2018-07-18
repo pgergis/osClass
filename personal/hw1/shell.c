@@ -27,8 +27,13 @@ struct termios shell_tmodes;
 /* Process group id for the shell */
 pid_t shell_pgid;
 
+/* Current working directory */
+static char cdir[4096];
+
 int cmd_exit(struct tokens *tokens);
 int cmd_help(struct tokens *tokens);
+int cmd_pwd(struct tokens *tokens);
+int cmd_cd(struct tokens *tokens);
 
 /* Built-in command functions take token array (see parse.h) and return int */
 typedef int cmd_fun_t(struct tokens *tokens);
@@ -43,6 +48,8 @@ typedef struct fun_desc {
 fun_desc_t cmd_table[] = {
   {cmd_help, "?", "show this help menu"},
   {cmd_exit, "exit", "exit the command shell"},
+  {cmd_pwd, "pwd", "view current directory"},
+  {cmd_cd, "cd", "change directory to argument directory path"},
 };
 
 /* Prints a helpful description for the given command */
@@ -55,6 +62,23 @@ int cmd_help(unused struct tokens *tokens) {
 /* Exits this shell */
 int cmd_exit(unused struct tokens *tokens) {
   exit(0);
+}
+
+/* Prints current directory */
+int cmd_pwd(unused struct tokens *tokens) {
+    if(getcwd(cdir, sizeof(cdir)) != NULL) { printf("%s\n", cdir); return 0; }
+    printf("pwd: Error");
+    return -1;
+}
+
+/* Move to directory given in argument */
+int cmd_cd(struct tokens *tokens) {
+    if(chdir(tokens_get_token(tokens, 1)) == 0) {
+        sprintf(cdir, tokens_get_token(tokens, 1));
+        return 0;
+    }
+    printf("cd: Error");
+    return -1;
 }
 
 /* Looks up the built-in command, if it exists. */
