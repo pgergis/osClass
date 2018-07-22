@@ -52,6 +52,41 @@ fun_desc_t cmd_table[] = {
   {cmd_cd, "cd", "change directory to argument directory path"},
 };
 
+void ext_exec(struct tokens *t) {
+    pid_t pid = fork();
+
+    if(pid < 0) {
+        perror("Fork failed");
+    } else if(pid > 0) {
+        int status;
+        waitpid(pid, &status, 0);
+    } else {
+        char *usr_in = tokens_get_token(t,0);
+        char *args[4096];
+        for(unsigned int i = 0; i < tokens_get_length(t); i ++) {
+            args[i] = tokens_get_token(t, i);
+        }
+
+        char prog[4096];
+        if(strstr(usr_in, "/") == 0) {
+            char *poss_paths = getenv("PATH");
+            char *path = strtok(poss_paths, ":");
+            while(path != NULL) {
+                sprintf(prog, "%s/%s", path, usr_in);
+                execv(prog, args);
+                path = strtok(NULL, ":");
+            }
+        } else {
+            strcpy(prog, usr_in);
+            execv(prog, args);
+        }
+        if(errno) {
+            perror("Program execution error");
+            exit(0);
+        }
+    }
+}
+
 /* Prints a helpful description for the given command */
 int cmd_help(unused struct tokens *tokens) {
   for (unsigned int i = 0; i < sizeof(cmd_table) / sizeof(fun_desc_t); i++)
@@ -135,8 +170,7 @@ int main(unused int argc, unused char *argv[]) {
     if (fundex >= 0) {
       cmd_table[fundex].fun(tokens);
     } else {
-      /* REPLACE this to run commands as programs. */
-      fprintf(stdout, "This shell doesn't know how to run programs.\n");
+        ext_exec(tokens);
     }
 
     if (shell_is_interactive)
