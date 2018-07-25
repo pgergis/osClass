@@ -1,5 +1,6 @@
 #include <ctype.h>
 #include <errno.h>
+#include <fcntl.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -15,6 +16,9 @@
 /* Convenience macro to silence compiler warnings about unused function parameters. */
 #define unused __attribute__((unused))
 
+/* Define standard Buffersize */
+#define BUFFSIZE 4096
+
 /* Whether the shell is connected to an actual terminal or not. */
 bool shell_is_interactive;
 
@@ -28,7 +32,7 @@ struct termios shell_tmodes;
 pid_t shell_pgid;
 
 /* Current working directory */
-static char cdir[4096];
+static char cdir[BUFFSIZE];
 
 int cmd_exit(struct tokens *tokens);
 int cmd_help(struct tokens *tokens);
@@ -52,7 +56,7 @@ fun_desc_t cmd_table[] = {
   {cmd_cd, "cd", "change directory to argument directory path"},
 };
 
-void ext_exec(struct tokens *t) {
+void ext_exec(char **args) {
     pid_t pid = fork();
 
     if(pid < 0) {
@@ -61,23 +65,17 @@ void ext_exec(struct tokens *t) {
         int status;
         waitpid(pid, &status, 0);
     } else {
-        char *usr_in = tokens_get_token(t,0);
-        char *args[4096];
-        for(unsigned int i = 0; i < tokens_get_length(t); i ++) {
-            args[i] = tokens_get_token(t, i);
-        }
-
-        char prog[4096];
-        if(strstr(usr_in, "/") == 0) {
+        char prog[BUFFSIZE];
+        if(strstr(args[0], "/") == 0) {
             char *poss_paths = getenv("PATH");
             char *path = strtok(poss_paths, ":");
             while(path != NULL) {
-                sprintf(prog, "%s/%s", path, usr_in);
+                sprintf(prog, "%s/%s", path, args[0]);
                 execv(prog, args);
                 path = strtok(NULL, ":");
             }
         } else {
-            strcpy(prog, usr_in);
+            strcpy(prog, args[0]);
             execv(prog, args);
         }
         if(errno) {
@@ -153,25 +151,77 @@ void init_shell() {
 int main(unused int argc, unused char *argv[]) {
   init_shell();
 
-  static char line[4096];
+  static char line[BUFFSIZE];
   int line_num = 0;
 
   /* Please only print shell prompts when standard input is not a tty */
   if (shell_is_interactive)
     fprintf(stdout, "%d: ", line_num);
 
-  while (fgets(line, 4096, stdin)) {
+  while (fgets(line, BUFFSIZE, stdin)) {
     /* Split our line into words. */
     struct tokens *tokens = tokenize(line);
 
+    /* Build args and set file_out */
+    char *args[BUFFSIZE];
+    int arg_i = 0;
+    char *file_out = "";
+    int redirect_type = 0; // 0: none; 1: file overwrite; 2: file append
+    for(unsigned int i = 0; i < tokens_get_length(tokens); i++) {
+        char *tok_i = tokens_get_token(tokens, i);
+        if(strcmp(tok_i, "<") == 0 || strcmp(tok_i, ">") == 0
+           || strcmp(tok_i, "<<") == 0 || strcmp(tok_i, ">>") == 0) {
+
+            if(strlen(tok_i) == 2) { redirect_type = 2; }
+            else { redirect_type = 1; }
+
+            /* If redirecting to or from nothing, display help */
+            if(i == 0 || i == tokens_get_length(tokens)-1) {
+                perror("File redirect error");
+                memset(args, '\0', sizeof(args));
+                args[0] = "?";
+                break;
+            } else {
+                /* If file comes first, reset args and set file to last seen thing */
+                if(strcmp(tok_i, "<") == 0 || strcmp(tok_i, "<<") == 0) {
+                    memset(args, '\0', sizeof(args));
+                    arg_i = 0;
+                    file_out = tokens_get_token(tokens, i-1);
+                } else {
+                    /* If file comes second, stop adding to args, and set the next thing to file */
+                    arg_i = -1;
+                    file_out = tokens_get_token(tokens, i+1);
+                }
+            }
+        } else {
+            if(arg_i >= 0) { args[arg_i] = tok_i; arg_i++; }
+        }
+    }
+
+    /* If there's a redirect, set it to the file */
+    int saved_stdout = dup(1);
+    if(redirect_type == 1) {
+        int fd = open(file_out, O_RDWR | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR);
+        close(1); dup(fd); close(fd);
+    } else if(redirect_type == 2) {
+        int fd = open(file_out, O_RDWR | O_CREAT | O_APPEND, S_IRUSR | S_IWUSR);
+        close(1); dup(fd); close(fd);
+    } else if(strcmp(file_out, "") != 0) { perror("Weird redirect error"); continue; }
+
     /* Find which built-in function to run. */
-    int fundex = lookup(tokens_get_token(tokens, 0));
+    int fundex = lookup(args[0]);
 
     if (fundex >= 0) {
-      cmd_table[fundex].fun(tokens);
+        cmd_table[fundex].fun(tokens);
     } else {
-        ext_exec(tokens);
+        ext_exec(args);
     }
+
+    /* Close file if there's a redirect */
+    if(strcmp(file_out, "") != 0) { dup2(saved_stdout, 1); close(saved_stdout); }
+
+    /* Reset args */
+    memset(args, '\0', sizeof(args));
 
     if (shell_is_interactive)
       /* Please only print shell prompts when standard input is not a tty */
