@@ -56,6 +56,17 @@ fun_desc_t cmd_table[] = {
   {cmd_cd, "cd", "change directory to argument directory path"},
 };
 
+void set_sig_handler(__sighandler_t handler) {
+    int signums[] = {SIGINT, SIGQUIT, SIGTTOU};
+
+    for(unsigned int i = 0; i < sizeof(signums)/sizeof(int); i++) {
+        if(signal(signums[i], handler) == SIG_ERR) {
+            perror("signal");
+            exit(1);
+        }
+    }
+}
+
 void ext_exec(char **args) {
     pid_t pid = fork();
 
@@ -63,8 +74,12 @@ void ext_exec(char **args) {
         perror("Fork failed");
     } else if(pid > 0) {
         int status;
-        waitpid(pid, &status, 0);
+        waitpid(pid, &status, WUNTRACED | WCONTINUED);
+        tcsetpgrp(0, getpgrp());
     } else {
+        setpgrp();
+        tcsetpgrp(0, getpgrp());
+        set_sig_handler(SIG_DFL);
         char prog[BUFFSIZE];
         if(strstr(args[0], "/") == 0) {
             char *poss_paths = getenv("PATH");
@@ -158,6 +173,8 @@ int main(unused int argc, unused char *argv[]) {
   if (shell_is_interactive)
     fprintf(stdout, "%d: ", line_num);
 
+  set_sig_handler(SIG_IGN);
+
   while (fgets(line, BUFFSIZE, stdin)) {
     /* Split our line into words. */
     struct tokens *tokens = tokenize(line);
@@ -202,10 +219,10 @@ int main(unused int argc, unused char *argv[]) {
     int saved_stdout = dup(1);
     if(redirect_type == 1) {
         int fd = open(file_out, O_RDWR | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR);
-        close(1); dup(fd); close(fd);
+        dup2(fd, 1);
     } else if(redirect_type == 2) {
         int fd = open(file_out, O_RDWR | O_CREAT | O_APPEND, S_IRUSR | S_IWUSR);
-        close(1); dup(fd); close(fd);
+        dup2(fd, 1);
     } else if(strcmp(file_out, "") != 0) { perror("Weird redirect error"); continue; }
 
     /* Find which built-in function to run. */
@@ -218,7 +235,7 @@ int main(unused int argc, unused char *argv[]) {
     }
 
     /* Close file if there's a redirect */
-    if(strcmp(file_out, "") != 0) { dup2(saved_stdout, 1); close(saved_stdout); }
+    if(strcmp(file_out, "") != 0) { dup2(saved_stdout, 1); }
 
     /* Reset args */
     memset(args, '\0', sizeof(args));
