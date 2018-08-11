@@ -56,50 +56,6 @@ fun_desc_t cmd_table[] = {
   {cmd_cd, "cd", "change directory to argument directory path"},
 };
 
-void set_sig_handler(__sighandler_t handler) {
-    int signums[] = {SIGINT, SIGQUIT, SIGTTOU};
-
-    for(unsigned int i = 0; i < sizeof(signums)/sizeof(int); i++) {
-        if(signal(signums[i], handler) == SIG_ERR) {
-            perror("signal");
-            exit(1);
-        }
-    }
-}
-
-void ext_exec(char **args) {
-    pid_t pid = fork();
-
-    if(pid < 0) {
-        perror("Fork failed");
-    } else if(pid > 0) {
-        int status;
-        waitpid(pid, &status, WUNTRACED | WCONTINUED);
-        tcsetpgrp(0, getpgrp());
-    } else {
-        setpgrp();
-        tcsetpgrp(0, getpgrp());
-        set_sig_handler(SIG_DFL);
-        char prog[BUFFSIZE];
-        if(strstr(args[0], "/") == 0) {
-            char *poss_paths = getenv("PATH");
-            char *path = strtok(poss_paths, ":");
-            while(path != NULL) {
-                sprintf(prog, "%s/%s", path, args[0]);
-                execv(prog, args);
-                path = strtok(NULL, ":");
-            }
-        } else {
-            strcpy(prog, args[0]);
-            execv(prog, args);
-        }
-        if(errno) {
-            perror("Program execution error");
-            exit(0);
-        }
-    }
-}
-
 /* Prints a helpful description for the given command */
 int cmd_help(unused struct tokens *tokens) {
   for (unsigned int i = 0; i < sizeof(cmd_table) / sizeof(fun_desc_t); i++)
@@ -135,6 +91,55 @@ int lookup(char cmd[]) {
     if (cmd && (strcmp(cmd_table[i].cmd, cmd) == 0))
       return i;
   return -1;
+}
+
+void set_sig_handler(__sighandler_t handler) {
+    int signums[] = {SIGINT, SIGQUIT, SIGTTOU, SIGTSTP, SIGCONT};
+
+    for(unsigned int i = 0; i < sizeof(signums)/sizeof(int); i++) {
+        if(signal(signums[i], handler) == SIG_ERR) {
+            perror("signal");
+            exit(1);
+        }
+    }
+}
+
+void ext_exec(char **args) {
+    pid_t pid = fork();
+
+    if(pid < 0) {
+        perror("Fork failed");
+    } else if(pid > 0) {
+        int status;
+        waitpid(pid, &status, WUNTRACED | WCONTINUED);
+        tcsetpgrp(0, getpgrp());
+    } else {
+        setpgrp();
+        unsigned int ioflast; for(ioflast = 0; args[ioflast] != NULL; ioflast++) {} ioflast--;
+        if(strcmp(args[ioflast], "&") == 0) {
+            args[ioflast] = NULL;
+        } else {
+            tcsetpgrp(0, getpgrp());
+        }
+        set_sig_handler(SIG_DFL);
+        char prog[BUFFSIZE];
+        if(strstr(args[0], "/") == 0) {
+            char *poss_paths = getenv("PATH");
+            char *path = strtok(poss_paths, ":");
+            while(path != NULL) {
+                sprintf(prog, "%s/%s", path, args[0]);
+                execv(prog, args);
+                path = strtok(NULL, ":");
+            }
+        } else {
+            strcpy(prog, args[0]);
+            execv(prog, args);
+        }
+        if(errno) {
+            perror("Program execution error");
+            exit(0);
+        }
+    }
 }
 
 /* Intialization procedures for this shell */
