@@ -115,6 +115,7 @@ void ext_exec(char **args) {
         tcsetpgrp(0, getpgrp());
     } else {
         setpgrp();
+        /* find last member of args array */
         unsigned int ioflast; for(ioflast = 0; args[ioflast] != NULL; ioflast++) {} ioflast--;
         if(strcmp(args[ioflast], "&") == 0) {
             args[ioflast] = NULL;
