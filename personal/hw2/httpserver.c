@@ -53,12 +53,10 @@ void handle_files_request(int fd) {
 
     struct http_request *request = http_request_parse(fd);
 
-    char *data_path;
-    if((data_path = malloc(strlen(server_files_directory) + strlen(request->path) + 1)) != NULL) {
-        data_path[0] = '\0';
-        strcat(data_path, server_files_directory);
-        strcat(data_path, request->path);
-    }
+    char data_path[strlen(server_files_directory) + strlen(request->path) + 1];
+    data_path[0] = '\0';
+    strcat(data_path, server_files_directory);
+    strcat(data_path, request->path);
 
     char *requested_content;
     char *mime_type;
@@ -106,10 +104,10 @@ void handle_files_request(int fd) {
         mime_type = http_get_mime_type(data_path);
     }
 
+    int file_size = 0;
     if(requested_file != NULL) {
-        int file_size;
         fseek(requested_file, 0, SEEK_END);
-        file_size = ftell(requested_file);
+        file_size += ftell(requested_file);
         fseek(requested_file, 0, SEEK_SET);
 
         requested_content = malloc(file_size+1);
@@ -124,7 +122,7 @@ void handle_files_request(int fd) {
         http_start_response(fd, 200);
         http_send_header(fd, "Content-Type", mime_type);
         http_end_headers(fd);
-        http_send_data(fd, requested_content, strlen(requested_content));
+        http_send_data(fd, requested_content, file_size);
         free(requested_content);
     } else {
         http_start_response(fd, 404);
@@ -137,10 +135,7 @@ void handle_files_request(int fd) {
                         "<p>File not found :(</p>"
                         "</center>");
     }
-
-    if(data_path) { free(data_path); }
 }
-
 
 /*
  * Opens a connection to the proxy target (hostname=server_proxy_hostname and
