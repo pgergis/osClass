@@ -43,6 +43,7 @@ int server_proxy_port;
  *      of files in the directory with links to each.
  *   4) Send a 404 Not Found response.
  */
+
 void handle_files_request(int fd) {
 
   /*
@@ -50,17 +51,94 @@ void handle_files_request(int fd) {
    * any existing code.
    */
 
-  struct http_request *request = http_request_parse(fd);
+    struct http_request *request = http_request_parse(fd);
 
-  http_start_response(fd, 200);
-  http_send_header(fd, "Content-Type", "text/html");
-  http_end_headers(fd);
-  http_send_string(fd,
-      "<center>"
-      "<h1>Welcome to httpserver!</h1>"
-      "<hr>"
-      "<p>Nothing's here yet.</p>"
-      "</center>");
+    char *data_path;
+    if((data_path = malloc(strlen(server_files_directory) + strlen(request->path) + 1)) != NULL) {
+        data_path[0] = '\0';
+        strcat(data_path, server_files_directory);
+        strcat(data_path, request->path);
+    }
+
+    char *requested_content;
+    char *mime_type;
+    DIR *requested_dir;
+    FILE *requested_file;
+
+    if((requested_dir = opendir(data_path)) != NULL) {
+        struct dirent *dir;
+        requested_file = tmpfile();
+        mime_type = "text/html";
+        char *back_link = "<a href=\"..\">Back</a>";
+        fwrite(back_link, strlen(back_link), 1, requested_file);
+        char *dir_head = "<center><h1>Files</h1><hr><br>";
+        fwrite(dir_head, strlen(dir_head), 1, requested_file);
+        int found_index = 0;
+        while((dir = readdir(requested_dir)) != NULL) {
+            char *file_name = dir->d_name;
+            if(strcmp("index.html", file_name) == 0) {
+                found_index = 1;
+                char new_file[strlen(data_path) + strlen("/index.html") + 1];
+                new_file[0] = '\0';
+                strcat(new_file, data_path);
+                strcat(new_file, "/index.html");
+                requested_file = fopen(new_file, "rb");
+                break;
+            }
+            if(strcmp(".", file_name) != 0 && strcmp("..", file_name) != 0) {
+                char *linkstart = "<li><a href=\"";
+                fwrite(linkstart, strlen(linkstart), 1, requested_file);
+                fwrite(file_name, strlen(file_name), 1, requested_file);
+                char *linkend = "\">";
+                fwrite(linkend, strlen(linkend), 1, requested_file);
+                fwrite(file_name, strlen(file_name), 1, requested_file);
+                char *newline = "</a></li><br>";
+                fwrite(newline, strlen(newline), 1, requested_file);
+            }
+        }
+        if(!found_index) {
+            char *dir_foot = "</ul><br>";
+            fwrite(dir_foot, strlen(dir_foot), 1, requested_file);
+        }
+        closedir(requested_dir);
+    } else {
+        requested_file = fopen(data_path, "rb");
+        mime_type = http_get_mime_type(data_path);
+    }
+
+    if(requested_file != NULL) {
+        int file_size;
+        fseek(requested_file, 0, SEEK_END);
+        file_size = ftell(requested_file);
+        fseek(requested_file, 0, SEEK_SET);
+
+        requested_content = malloc(file_size+1);
+        requested_content[0] = '\0';
+        if(requested_content){
+            fread(requested_content, file_size, 1, requested_file);
+        }
+
+        fclose(requested_file);
+    }
+    if(requested_content != NULL) {
+        http_start_response(fd, 200);
+        http_send_header(fd, "Content-Type", mime_type);
+        http_end_headers(fd);
+        http_send_data(fd, requested_content, strlen(requested_content));
+        free(requested_content);
+    } else {
+        http_start_response(fd, 404);
+        http_send_header(fd, "Content-Type", "text/html");
+        http_end_headers(fd);
+        http_send_string(fd,
+                        "<center>"
+                        "<h1>404</h1>"
+                        "<hr>"
+                        "<p>File not found :(</p>"
+                        "</center>");
+    }
+
+    if(data_path) { free(data_path); }
 }
 
 
@@ -78,7 +156,7 @@ void handle_files_request(int fd) {
 void handle_proxy_request(int fd) {
 
   /*
-  * The code below does a DNS lookup of server_proxy_hostname and 
+  * The code below does a DNS lookup of server_proxy_hostname and
   * opens a connection to it. Please do not modify.
   */
 
@@ -118,8 +196,8 @@ void handle_proxy_request(int fd) {
 
   }
 
-  /* 
-  * TODO: Your solution for task 3 belongs here! 
+  /*
+  * TODO: Your solution for task 3 belongs here!
   */
 }
 
